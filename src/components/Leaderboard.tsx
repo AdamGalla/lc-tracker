@@ -49,11 +49,10 @@ export function Leaderboard({ users }: LeaderboardProps) {
           <button
             key={p.value}
             onClick={() => setPeriod(p.value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              period === p.value
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${period === p.value
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             {p.label}
           </button>
@@ -68,7 +67,7 @@ export function Leaderboard({ users }: LeaderboardProps) {
               <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-16">Rank</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">User</th>
               <th className="px-4 py-3 text-center text-xs font-medium text-primary uppercase tracking-wider">
-                {period === "total" ? "Total Solved" : "Submissions"}
+                {period === "total" ? "Total Solved" : "Total Submissions"}
               </th>
               {period === "total" && (
                 <>

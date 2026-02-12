@@ -1,5 +1,8 @@
-import { LeetCodeUser } from "@/lib/leetcode-api";
-import { X, RefreshCw, ExternalLink, Flame } from "lucide-react";
+import { LeetCodeUser, getDaysAgo } from "@/lib/leetcode-api";
+import { X, RefreshCw, ExternalLink, Flame, CheckCircle2, ClipboardX } from "lucide-react";
+import { SubmissionCalendar } from "./Calendar";
+import { formatTimeAgo } from "@/lib/time";
+import { useEffect, useState } from "react";
 
 interface UserCardProps {
   user: LeetCodeUser;
@@ -8,11 +11,24 @@ interface UserCardProps {
 }
 
 export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
-  const { solvedStats, totalQuestions, profile } = user;
+  const { solvedStats, profile, recentSubmissions } = user;
+  const [now, setNow] = useState(() => Date.now());
 
-  const easyPct = totalQuestions.easy ? (solvedStats.easy / totalQuestions.easy) * 100 : 0;
-  const medPct = totalQuestions.medium ? (solvedStats.medium / totalQuestions.medium) * 100 : 0;
-  const hardPct = totalQuestions.hard ? (solvedStats.hard / totalQuestions.hard) * 100 : 0;
+  const totalQuestions = { easy: 925, medium: 2005, hard: 907 }
+
+  const easyPct = solvedStats.easy ? solvedStats.easy / totalQuestions.easy * 100 : 0;
+  const medPct = solvedStats.medium ? solvedStats.medium / totalQuestions.medium * 100 : 0;
+  const hardPct = solvedStats.hard ? solvedStats.hard / totalQuestions.hard * 100 : 0;
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000); // update every minute
+    return () => clearInterval(id);
+  }, []);
+
+  const recentFive = recentSubmissions?.slice(0, 5) || [];
+
+  const lastUpdatedText =
+    user.lastFetched ? formatTimeAgo(user.lastFetched, now, { compact: false, alwaysShowMinutes: true }) : "—";
 
   return (
     <div className="group relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
@@ -43,7 +59,10 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
           </div>
           {profile.ranking > 0 && (
             <p className="text-xs text-muted-foreground">Rank #{profile.ranking.toLocaleString()}</p>
-          )}
+          )} <span className="text-muted-foreground/40 border-t h-1 border-t-muted"></span>
+          <p className="text-[10px] text-muted-foreground">
+            Last updated {lastUpdatedText}
+          </p>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
@@ -65,7 +84,7 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
       <div className="mb-4 flex items-center justify-center gap-6">
         <div className="text-center">
           <span className="font-mono text-3xl font-bold text-primary">{solvedStats.all}</span>
-          <span className="text-sm text-muted-foreground"> / {totalQuestions.all}</span>
+          <span className="text-sm text-muted-foreground"> / {3837}</span>
           <p className="text-xs text-muted-foreground mt-0.5">Solved</p>
         </div>
         <div className="h-10 w-px bg-border" />
@@ -84,6 +103,52 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
         <DifficultyBar label="Medium" solved={solvedStats.medium} total={totalQuestions.medium} pct={medPct} color="bg-medium" />
         <DifficultyBar label="Hard" solved={solvedStats.hard} total={totalQuestions.hard} pct={hardPct} color="bg-hard" />
       </div>
+
+      <SubmissionCalendar
+        submissionCalendar={user.submissionCalendar}
+        username={user.username}
+      />
+
+      {/* Recent Submissions */}
+      {recentFive.length > 0 ? (
+        <div className="mt-4 pt-4 border-t border-border">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
+            Recent Accepted Submissions
+          </h4>
+          <div className="space-y-1.5">
+            {recentFive.map((submission, index) => {
+              const daysAgo = getDaysAgo(submission.timestamp);
+              const timeText = daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : `${daysAgo}d ago`;
+
+              return (
+                <a
+                  key={`${submission.titleSlug}-${index}`}
+                  href={`https://leetcode.com/problems/${submission.titleSlug}/`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/50 transition-colors group/item"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-easy flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate flex-1 group-hover/item:text-primary">
+                    {submission.title}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {timeText}
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      ) : (<div className="mt-4 pt-4 border-t border-border">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
+          Recent Accepted Submissions
+        </h4>
+        <div className="py-8 flex h-full flex-col items-center justify-center gap-2">
+          <ClipboardX className="h-8 w-8 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">No Recent Accepted Submissions</span>
+        </div>
+      </div>)}
     </div>
   );
 }

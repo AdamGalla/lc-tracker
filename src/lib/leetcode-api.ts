@@ -1,3 +1,11 @@
+export interface LeetCodeSubmission {
+  title: string;
+  titleSlug: string;
+  timestamp: string;
+  statusDisplay: string;
+  lang: string;
+}
+
 export interface LeetCodeUser {
   username: string;
   profile: {
@@ -19,16 +27,70 @@ export interface LeetCodeUser {
   };
   streak: number;
   submissionCalendar: Record<string, number>;
+  recentSubmissions: LeetCodeSubmission[];
+  rateLimit?: RateLimitInfo;
   lastFetched: number;
 }
 
+export interface WeeklyStats {
+  weekStart: Date;
+  weekEnd: Date;
+  weekLabel: string;
+  userSubmissions: {
+    username: string;
+    count: number;
+    avatar: string;
+    problems: string[];
+  }[];
+}
+
+export interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number;
+  resetTime: Date;
+}
+
+
+export class RateLimitError extends Error {
+  readonly status = 429 as const;
+
+  constructor(message = "Rate limit exceeded", public rateLimit?: RateLimitInfo) {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}
+
+export function isRateLimitError(err: unknown): err is RateLimitError {
+  return err instanceof RateLimitError;
+}
+
+
 export type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "total";
+
+function parseRateLimitHeaders(headers: Headers): RateLimitInfo | undefined {
+  const rateLimitHeader = headers.get('ratelimit');
+  if (!rateLimitHeader) return undefined;
+
+  const parts = rateLimitHeader.split(',').reduce((acc, part) => {
+    const [key, value] = part.trim().split('=');
+    acc[key] = parseInt(value);
+    return acc;
+  }, {} as Record<string, number>);
+
+  return {
+    limit: parts.limit || 0,
+    remaining: parts.remaining || 0,
+    reset: parts.reset || 0,
+    resetTime: new Date(Date.now() + (parts.reset * 1000)),
+  };
+}
 
 export function getSubmissionsInPeriod(
   calendar: Record<string, number>,
   period: LeaderboardPeriod
 ): number {
-  if (period === "total") return -1; // signal to use solvedStats.all instead
+  if (period === "total") return -1;
 
   const now = new Date();
   now.setHours(23, 59, 59, 999);
@@ -52,6 +114,16 @@ export function getSubmissionsInPeriod(
     }
   }
   return total;
+}
+
+export function getDaysAgo(timestamp: string | number): number {
+  const submissionDate = new Date(Number(timestamp) * 1000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  submissionDate.setHours(0, 0, 0, 0);
+  const diffTime = today.getTime() - submissionDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
 }
 
 const API_BASE = "https://alfa-leetcode-api.onrender.com";
@@ -93,56 +165,151 @@ function calculateStreak(submissionCalendar: Record<string, number>): number {
 }
 
 export async function fetchLeetCodeUser(username: string): Promise<LeetCodeUser> {
-  const [profileRes, solvedRes, calendarRes] = await Promise.all([
-    fetch(`${API_BASE}/${username}`),
-    fetch(`${API_BASE}/${username}/solved`),
-    fetch(`${API_BASE}/${username}/calendar`),
-  ]);
 
-  if (!profileRes.ok) throw new Error(`User "${username}" not found`);
-  if (!solvedRes.ok) throw new Error(`Could not fetch solved stats for "${username}"`);
+  try {
+    const [profileRes, solvedRes, calendarRes, submissionsRes] = await Promise.all([
+      fetch(`${API_BASE}/${username}`),
+      fetch(`${API_BASE}/${username}/solved`),
+      fetch(`${API_BASE}/${username}/calendar`),
+      fetch(`${API_BASE}/${username}/acSubmission?limit=100`),
+    ]);
 
-  const profile = await profileRes.json();
-  const solved = await solvedRes.json();
-  const calendar = calendarRes.ok ? await calendarRes.json() : {};
+    if (submissionsRes.status === 429) {
+      throw new RateLimitError(
+        `Rate limit exceeded. Please try again in few minutes.`,
+      );
+    }
 
-  if (!profile.username && !profile.matchedUser) {
-    throw new Error(`User "${username}" not found on LeetCode`);
+    if (!profileRes.ok) throw new Error(`User "${username}" not found`);
+    if (!solvedRes.ok) throw new Error(`Could not fetch solved stats for "${username}"`);
+
+    const profile = await profileRes.json();
+    const solved = await solvedRes.json();
+    const calendar = calendarRes.ok ? await calendarRes.json() : {};
+    const submissions = submissionsRes.ok ? await submissionsRes.json() : { submission: [] };
+
+    if (!profile.username && !profile.matchedUser) {
+      throw new Error(`User "${username}" not found on LeetCode`);
+    }
+
+    const easySolved = solved.easySolved ?? 0;
+    const mediumSolved = solved.mediumSolved ?? 0;
+    const hardSolved = solved.hardSolved ?? 0;
+
+    let submissionCalendar: Record<string, number> = {};
+    if (calendar.submissionCalendar) {
+      submissionCalendar =
+        typeof calendar.submissionCalendar === "string"
+          ? JSON.parse(calendar.submissionCalendar)
+          : calendar.submissionCalendar;
+    }
+
+    const recentSubmissions: LeetCodeSubmission[] = (submissions.submission || [])
+      .filter((sub: any) => sub.statusDisplay === "Accepted");
+
+    return {
+      username: profile.username ?? username,
+      profile: {
+        realName: profile.name ?? username,
+        userAvatar: profile.avatar ?? "",
+        ranking: profile.ranking ?? 0,
+      },
+      solvedStats: {
+        all: solved.solvedProblem ?? easySolved + mediumSolved + hardSolved,
+        easy: easySolved,
+        medium: mediumSolved,
+        hard: hardSolved,
+      },
+      totalQuestions: {
+        all: solved.totalProblem ?? 0,
+        easy: solved.totalEasy ?? 0,
+        medium: solved.totalMedium ?? 0,
+        hard: solved.totalHard ?? 0,
+      },
+      streak: calculateStreak(submissionCalendar),
+      submissionCalendar,
+      recentSubmissions,
+      lastFetched: Date.now(),
+    };
+  } catch (err: any) {
+    if (err.message.includes("fetch")) {
+      throw new Error("Network error. Please check your connection.");
+    }
+    throw err;
   }
+}
 
-  const easySolved = solved.easySolved ?? 0;
-  const mediumSolved = solved.mediumSolved ?? 0;
-  const hardSolved = solved.hardSolved ?? 0;
+export function getWeeklyHistory(users: LeetCodeUser[]): WeeklyStats[] {
+  const weekMap = new Map<string, Map<string, Set<string>>>();
 
-  let submissionCalendar: Record<string, number> = {};
-  if (calendar.submissionCalendar) {
-    submissionCalendar =
-      typeof calendar.submissionCalendar === "string"
-        ? JSON.parse(calendar.submissionCalendar)
-        : calendar.submissionCalendar;
-  }
-
-  return {
-    username: profile.username ?? username,
-    profile: {
-      realName: profile.name ?? username,
-      userAvatar: profile.avatar ?? "",
-      ranking: profile.ranking ?? 0,
-    },
-    solvedStats: {
-      all: solved.solvedProblem ?? easySolved + mediumSolved + hardSolved,
-      easy: easySolved,
-      medium: mediumSolved,
-      hard: hardSolved,
-    },
-    totalQuestions: {
-      all: solved.totalProblem ?? 0,
-      easy: solved.totalEasy ?? 0,
-      medium: solved.totalMedium ?? 0,
-      hard: solved.totalHard ?? 0,
-    },
-    streak: calculateStreak(submissionCalendar),
-    submissionCalendar,
-    lastFetched: Date.now(),
+  const getMonday = (date: Date): Date => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
   };
+
+  const now = new Date();
+  const currentMonday = getMonday(now);
+  const weeksToShow = 2;
+
+  for (let i = 0; i < weeksToShow; i++) {
+    const weekStart = new Date(currentMonday);
+    weekStart.setDate(weekStart.getDate() - (i * 7));
+    const weekKey = weekStart.toISOString().split('T')[0];
+    weekMap.set(weekKey, new Map());
+  }
+
+  users.forEach((user) => {
+    if (!user.recentSubmissions) return;
+
+    user.recentSubmissions.forEach((sub) => {
+      const date = new Date(Number(sub.timestamp) * 1000);
+      const monday = getMonday(date);
+      const weekKey = monday.toISOString().split('T')[0];
+
+      if (weekMap.has(weekKey)) {
+        const weekData = weekMap.get(weekKey)!;
+        if (!weekData.has(user.username)) {
+          weekData.set(user.username, new Set());
+        }
+        weekData.get(user.username)!.add(sub.titleSlug);
+      }
+    });
+  });
+
+  const weeks = Array.from(weekMap.entries())
+    .map(([weekKey, userData]) => {
+      const weekStart = new Date(weekKey);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      const userSubmissions = users.map((user) => {
+        const problems = userData.get(user.username);
+        return {
+          username: user.username,
+          count: problems ? problems.size : 0,
+          avatar: user.profile.userAvatar,
+          problems: problems ? Array.from(problems) : [],
+        };
+      });
+
+      userSubmissions.sort((a, b) => b.count - a.count);
+
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      return {
+        weekStart,
+        weekEnd,
+        weekLabel: `${formatDate(weekStart)} - ${formatDate(weekEnd)}`,
+        userSubmissions,
+      };
+    })
+    .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
+
+  return weeks;
 }
