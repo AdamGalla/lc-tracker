@@ -1,6 +1,7 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
+  "homepage": "https://adamgalla.github.io/lc-tracker/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
