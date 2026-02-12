@@ -7,7 +7,6 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    base: "lc-tracker",
     port: 8080,
     hmr: {
       overlay: false,
