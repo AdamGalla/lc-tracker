@@ -6,12 +6,36 @@ import { AddUserForm } from "@/components/AddUserForm";
 import { Leaderboard } from "@/components/Leaderboard";
 import { WeeklyChallenge } from "@/components/WeeklyChallenge";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
+import { formatRemaining } from "@/lib/time";
 
 type Tab = "dashboard" | "leaderboard" | "weekly";
 
 const Index = () => {
   const [tab, setTab] = useState<Tab>("dashboard");
   const { users, loading, error, addUser, removeUser, refreshUser, refreshAll, setError } = useLeetCodeUsers();
+  const { toast } = useToast();
+
+  const COOLDOWN_MS = 1 * 60 * 1000;
+
+  const refreshAllWithCooldown = () => {
+    if (loading) return;
+
+    const now = Date.now();
+
+    // Users refreshed within last 5 minutes
+    const blocked = users.filter(u => u.lastFetched && (now - u.lastFetched) < COOLDOWN_MS);
+
+    if (blocked.length > 0) {
+      const newest = Math.max(...blocked.map(u => u.lastFetched!));
+      const remaining = COOLDOWN_MS - (now - newest);
+
+      toast({ title: "Refresh limit reached", description: `Please wait ${formatRemaining(remaining)} before refreshing again.` });
+      return;
+    }
+
+    refreshAll();
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -62,7 +86,7 @@ const Index = () => {
           <div className="flex gap-5">
             {users.length > 0 && (
               <button
-                onClick={refreshAll}
+                onClick={refreshAllWithCooldown}
                 disabled={loading}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50 transition-colors"
               >

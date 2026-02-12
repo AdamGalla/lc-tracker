@@ -1,8 +1,9 @@
 import { LeetCodeUser, getDaysAgo } from "@/lib/leetcode-api";
 import { X, RefreshCw, ExternalLink, Flame, CheckCircle2, ClipboardX } from "lucide-react";
 import { SubmissionCalendar } from "./Calendar";
-import { formatTimeAgo } from "@/lib/time";
+import { formatRemaining, formatTimeAgo } from "@/lib/time";
 import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserCardProps {
   user: LeetCodeUser;
@@ -11,8 +12,27 @@ interface UserCardProps {
 }
 
 export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
-  const { solvedStats, profile, recentSubmissions } = user;
+  const { solvedStats, profile, recentSubmissions, lastFetched } = user;
   const [now, setNow] = useState(() => Date.now());
+  const { toast } = useToast();
+
+  const COOLDOWN_MS = 1 * 60 * 1000;
+
+  const refreshWithCooldown = () => {
+    const now = Date.now();
+
+    // Users refreshed within last 5 minutes
+    const blocked = now - lastFetched < COOLDOWN_MS;
+
+    if (blocked) {
+      const remaining = COOLDOWN_MS - (now - lastFetched);
+
+      toast({ title: "Refresh limit reached", description: `Please wait ${formatRemaining(remaining)} before refreshing again.` });
+      return;
+    }
+
+    onRefresh(user.username);
+  };
 
   const totalQuestions = { easy: 925, medium: 2005, hard: 907 }
 
@@ -66,7 +86,7 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onRefresh(user.username)}
+            onClick={() => refreshWithCooldown()}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />

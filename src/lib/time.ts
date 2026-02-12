@@ -31,3 +31,10 @@ export function formatTimeAgo(fromMs: number, nowMs: number = Date.now(), opts: 
 
   return `${parts.join(compact ? " " : " ")} ago`;
 }
+
+export function formatRemaining(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
