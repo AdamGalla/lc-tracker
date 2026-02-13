@@ -2,7 +2,7 @@ import { LeetCodeUser, getDaysAgo } from "@/lib/leetcode-api";
 import { X, RefreshCw, ExternalLink, Flame, CheckCircle2, ClipboardX } from "lucide-react";
 import { SubmissionCalendar } from "./Calendar";
 import { formatRemaining, formatTimeAgo } from "@/lib/time";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserCardProps {
@@ -44,7 +44,16 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
     return () => clearInterval(id);
   }, []);
 
-  const recentFive = [...new Set(recentSubmissions)]?.slice(0, 5) || [];
+  const recentFive = useMemo(() => {
+    const seen = new Set();
+    return recentSubmissions
+      ?.filter(item => {
+        if (seen.has(item.titleSlug)) return false;
+        seen.add(item.titleSlug);
+        return true;
+      })
+      .slice(0, 5) || [];
+  }, [recentSubmissions]);
 
   const lastUpdatedText =
     user.lastFetched ? formatTimeAgo(user.lastFetched, now, { compact: false, alwaysShowMinutes: true }) : "—";
