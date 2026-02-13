@@ -21,7 +21,6 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
   const refreshWithCooldown = () => {
     const now = Date.now();
 
-    // Users refreshed within last 5 minutes
     const blocked = now - lastFetched < COOLDOWN_MS;
 
     if (blocked) {
@@ -45,7 +44,7 @@ export function UserCard({ user, onRemove, onRefresh }: UserCardProps) {
     return () => clearInterval(id);
   }, []);
 
-  const recentFive = recentSubmissions?.slice(0, 5) || [];
+  const recentFive = [...new Set(recentSubmissions)]?.slice(0, 5) || [];
 
   const lastUpdatedText =
     user.lastFetched ? formatTimeAgo(user.lastFetched, now, { compact: false, alwaysShowMinutes: true }) : "—";
