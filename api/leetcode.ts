@@ -1,10 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-interface LeetCodeGraphQLRequest {
-  query: string;
-  variables?: Record<string, any>;
-}
-
 const LEETCODE_API = 'https://leetcode.com/graphql';
 
 const USER_PROFILE_QUERY = `

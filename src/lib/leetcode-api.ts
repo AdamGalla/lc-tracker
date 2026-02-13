@@ -51,7 +51,6 @@ export interface RateLimitInfo {
   resetTime: Date;
 }
 
-
 export class RateLimitError extends Error {
   readonly status = 429 as const;
 
@@ -65,26 +64,7 @@ export function isRateLimitError(err: unknown): err is RateLimitError {
   return err instanceof RateLimitError;
 }
 
-
 export type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "total";
-
-function parseRateLimitHeaders(headers: Headers): RateLimitInfo | undefined {
-  const rateLimitHeader = headers.get('ratelimit');
-  if (!rateLimitHeader) return undefined;
-
-  const parts = rateLimitHeader.split(',').reduce((acc, part) => {
-    const [key, value] = part.trim().split('=');
-    acc[key] = parseInt(value);
-    return acc;
-  }, {} as Record<string, number>);
-
-  return {
-    limit: parts.limit || 0,
-    remaining: parts.remaining || 0,
-    reset: parts.reset || 0,
-    resetTime: new Date(Date.now() + (parts.reset * 1000)),
-  };
-}
 
 export function getSubmissionsInPeriod(
   calendar: Record<string, number>,
@@ -126,8 +106,6 @@ export function getDaysAgo(timestamp: string | number): number {
   return diffDays;
 }
 
-const API_BASE = "https://alfa-leetcode-api.onrender.com";
-
 function calculateStreak(submissionCalendar: Record<string, number>): number {
   if (!submissionCalendar || Object.keys(submissionCalendar).length === 0) return 0;
 
@@ -164,7 +142,6 @@ function calculateStreak(submissionCalendar: Record<string, number>): number {
   return streak;
 }
 
-
 export async function fetchLeetCodeUser(username: string): Promise<LeetCodeUser> {
   try {
     const response = await fetch(`/api/leetcode?username=${username}`);
@@ -178,11 +155,13 @@ export async function fetchLeetCodeUser(username: string): Promise<LeetCodeUser>
 
     const data = await response.json();
 
+    data.streak = calculateStreak(data.submissionCalendar);
+
     if (data.error) {
       throw new Error(data.error);
     }
 
-    return data; // Already in LeetCodeUser format!
+    return data;
   } catch (err: any) {
     if (err.message.includes("fetch")) {
       throw new Error("Network error. Please check your connection.");
