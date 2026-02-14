@@ -96,7 +96,6 @@ export default async function handler(
       return response.status(400).json({ error: 'Username required' });
     }
 
-    // Fetch all data in parallel
     const [profileData, calendarData] = await Promise.all([
       fetchLeetCodeGraphQL(USER_PROFILE_QUERY, { username }),
       fetchLeetCodeGraphQL(CALENDAR_QUERY, {
@@ -105,7 +104,6 @@ export default async function handler(
       }),
     ]);
 
-    // Transform to match your existing interface
     const result = {
       username: profileData.data.matchedUser.username,
       profile: profileData.data.matchedUser.profile,

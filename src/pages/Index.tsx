@@ -23,7 +23,6 @@ const Index = () => {
 
     const now = Date.now();
 
-    // Users refreshed within last 5 minutes
     const blocked = users.filter(u => u.lastFetched && (now - u.lastFetched) < COOLDOWN_MS);
 
     if (blocked.length > 0) {
