@@ -14,3 +14,7 @@ The GraphQL queries used to fetch data from LeetCode were adapted from [alfa-lee
 ## Usage
 
 Add your LeetCode usernames to track the progress.
+
+## Responsiveness
+
+Not optimized for mobile.
