@@ -74,10 +74,9 @@ export default async function handler(
 ) {
   const origin = request.headers.origin;
 
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'https://lc-tracker-amber.vercel.app',
-  ];
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:8080', 'http://localhost:5173'];
 
   if (origin && allowedOrigins.includes(origin)) {
     response.setHeader('Access-Control-Allow-Origin', origin);
